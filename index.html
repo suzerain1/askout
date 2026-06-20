@@ -59,6 +59,7 @@
     position: relative;
     z-index: 2;
     width: min(92vw, 560px);
+    min-height: 420px;
     text-align: center;
     padding: 48px 36px 56px;
     background: rgba(255, 255, 255, 0.6);
@@ -66,6 +67,7 @@
     backdrop-filter: blur(6px);
     box-shadow: 0 20px 60px var(--shadow);
     border: 1px solid rgba(255, 255, 255, 0.6);
+    overflow: hidden; /* keep the dodging button visually contained to the card */
   }
 
   .screen { display: none; }
@@ -113,6 +115,7 @@
     align-items: center;
     gap: 22px;
     height: 80px;
+    width: 100%;
   }
 
   button {
@@ -145,12 +148,12 @@
     border: 2px solid #f0d4dd;
     z-index: 4;
     white-space: nowrap;
-    position: fixed;
-    /* Starting position is set via JS on first paint of each screen */
-    transition: left 0.28s ease, top 0.28s ease, transform 0.15s ease, opacity 0.4s ease;
-    visibility: hidden; /* hidden only until JS places it correctly, never via opacity/display so it can't appear to vanish */
+    position: relative; /* sits inline next to Yes until the first dodge */
+    transition: left 0.28s ease, top 0.28s ease, transform 0.15s ease, background 0.2s ease;
   }
-  .no-btn.placed { visibility: visible; }
+  .no-btn.dodging {
+    position: absolute; /* once it starts evading, it roams freely within .stage */
+  }
 
   .counter {
     margin-top: 28px;
@@ -185,6 +188,12 @@
     text-align: right;
   }
   .char-status.met { color: #3aa17e; font-weight: 600; }
+
+  .sad-emoji {
+    font-size: 56px;
+    margin-bottom: 18px;
+    line-height: 1;
+  }
 
   .stack-row {
     display: flex;
@@ -250,6 +259,45 @@
     box-shadow: none;
   }
 
+  .email-btn {
+    display: inline-block;
+    margin-top: 20px;
+    background: white;
+    color: var(--rose-deep);
+    border: 2px solid var(--rose);
+    border-radius: 999px;
+    padding: 14px 30px;
+    font-weight: 700;
+    font-size: 16px;
+    text-decoration: none;
+    transition: background 0.2s ease, color 0.2s ease, transform 0.15s ease;
+  }
+  .email-btn:hover {
+    background: var(--rose);
+    color: white;
+    transform: scale(1.03);
+  }
+  .send-status {
+    margin-top: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #a98aa1;
+  }
+  .send-status.send-success { color: #3aa17e; }
+  .send-status.send-error { color: #c2554f; }
+  .email-hint {
+    font-size: 12px;
+    color: #a98aa1;
+    margin-top: 10px;
+  }
+  .copy-link {
+    color: var(--rose-deep);
+    font-weight: 600;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .copy-link:hover { color: var(--rose); }
+
   /* Celebration overlay */
   #celebration {
     position: fixed;
@@ -314,7 +362,7 @@
     <div class="subtext" id="s1">Just a yes or no question. Mostly yes.</div>
     <div class="button-row">
       <button class="yes-btn" id="yes1">Yes 💕</button>
-      <button class="no-btn" id="no1">No</button>
+      <button class="no-btn" id="no1" data-screen="screen1">No</button>
     </div>
     <div class="counter" id="counter1"></div>
   </section>
@@ -326,7 +374,7 @@
     <div class="subtext" id="s2">Just double-checking. This is a big deal.</div>
     <div class="button-row">
       <button class="yes-btn" id="yeah2">Yeah</button>
-      <button class="no-btn" id="no2">No</button>
+      <button class="no-btn" id="no2" data-screen="screen2">No</button>
     </div>
     <div class="counter" id="counter2"></div>
   </section>
@@ -360,6 +408,18 @@
     </div>
     <button class="confirm-btn" id="finalConfirm" disabled>Lock it in</button>
   </section>
+  <!-- SCREEN 5: She actually declined -->
+  <section class="screen" id="screen5">
+    <div class="sad-emoji">😢</div>
+    <h1 class="question" style="font-size: clamp(26px, 6.5vw, 38px);">Oh. Okay.</h1>
+    <div class="subtext" style="margin-bottom: 28px;">Jerald did not see this ending coming, but he respects the 5,000 characters of effort. That's basically a thesis.</div>
+    <div class="subtext" style="margin-bottom: 0;">If this was all just for the bit, there's still a button for that.</div>
+    <button class="yes-btn" id="changedMind5" style="margin-top: 22px;">Wait, I'm actually sure 💕</button>
+    <div style="margin-top: 18px;">
+      <div class="send-status" id="sendStatusDecline">Sending...</div>
+      <div class="email-hint">Didn't go through? <a href="#" id="copyFallbackDecline" class="copy-link">Copy your answer</a> and send it yourself.</div>
+    </div>
+  </section>
 
 </main>
 
@@ -367,44 +427,55 @@
   <div class="win-card">
     <h2 id="winHeadline">It's a date! 🎉</h2>
     <p id="winSub">Loading...</p>
+    <div class="send-status" id="sendStatus">Sending...</div>
+    <div class="email-hint">Didn't go through? <a href="#" id="copyFallback" class="copy-link">Copy your answer</a> and send it yourself.</div>
   </div>
 </div>
 
 <script>
   /* ---------- Shared helpers ---------- */
 
-  function placeNoButton(btn) {
-    const margin = 70;
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+  const JERALD_EMAIL = 'suzegallegz@gmail.com';
+  const FORMSPREE_ENDPOINT = 'https://formspree.io/f/maqzrzyo';
+  const stageEl = document.querySelector('.stage');
+
+  function placeNoButtonWithinStage(btn) {
+    const stageRect = stageEl.getBoundingClientRect();
+    const margin = 16;
     const btnW = btn.offsetWidth || 90;
     const btnH = btn.offsetHeight || 54;
-    const maxX = Math.max(margin, w - margin - btnW);
-    const maxY = Math.max(margin, h - margin - btnH);
+
+    const maxX = Math.max(margin, stageRect.width - margin - btnW);
+    const maxY = Math.max(margin, stageRect.height - margin - btnH);
+
     const x = margin + Math.random() * (maxX - margin);
     const y = margin + Math.random() * (maxY - margin);
+
     btn.style.left = `${x}px`;
     btn.style.top = `${y}px`;
-    btn.classList.add('placed');
   }
 
   function setupDodgingButton(btn, onDodge) {
     let active = true;
-
-    // Place it near the stage initially so it's visible immediately
-    requestAnimationFrame(() => {
-      const rect = btn.getBoundingClientRect();
-      if (rect.width === 0) {
-        // not yet visible in layout (screen not active) — try again shortly
-        setTimeout(() => placeNoButton(btn), 50);
-      } else {
-        placeNoButton(btn);
-      }
-    });
+    let dodging = false;
+    const originalParent = btn.parentElement;
+    const originalNextSibling = btn.nextSibling;
 
     function dodge() {
       if (!active) return;
-      placeNoButton(btn);
+      if (!dodging) {
+        // First dodge: capture its current on-screen spot, reparent to .stage
+        // (so it can roam the full card, not just the button row), then place it.
+        const beforeRect = btn.getBoundingClientRect();
+        const stageRectNow = stageEl.getBoundingClientRect();
+        dodging = true;
+        stageEl.appendChild(btn);
+        btn.classList.add('dodging');
+        // Preserve its visual position at the moment of reparenting
+        btn.style.left = `${beforeRect.left - stageRectNow.left}px`;
+        btn.style.top = `${beforeRect.top - stageRectNow.top}px`;
+      }
+      placeNoButtonWithinStage(btn);
       if (onDodge) onDodge();
     }
 
@@ -415,17 +486,17 @@
     }, { passive: false });
 
     const moveHandler = (e) => {
-      if (!active) return;
+      if (!active || !dodging) return;
       const rect = btn.getBoundingClientRect();
       if (rect.width === 0) return;
       const cx = rect.left + rect.width / 2;
       const cy = rect.top + rect.height / 2;
       const dist = Math.hypot(e.clientX - cx, e.clientY - cy);
-      if (dist < 70) dodge();
+      if (dist < 60) dodge();
     };
     document.addEventListener('mousemove', moveHandler);
 
-    const resizeHandler = () => { if (active) placeNoButton(btn); };
+    const resizeHandler = () => { if (active && dodging) placeNoButtonWithinStage(btn); };
     window.addEventListener('resize', resizeHandler);
 
     return {
@@ -433,6 +504,19 @@
         active = false;
         document.removeEventListener('mousemove', moveHandler);
         window.removeEventListener('resize', resizeHandler);
+      },
+      reset: () => {
+        // Put it back inline in its original spot, in case a screen is revisited
+        dodging = false;
+        active = true;
+        btn.classList.remove('dodging');
+        btn.style.left = '';
+        btn.style.top = '';
+        if (originalNextSibling) {
+          originalParent.insertBefore(btn, originalNextSibling);
+        } else {
+          originalParent.appendChild(btn);
+        }
       }
     };
   }
@@ -440,6 +524,39 @@
   function showScreen(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
+    // Any No button that has escaped into .stage directly (via dodging) only
+    // belongs to its own screen — hide it unless that screen is the active one.
+    document.querySelectorAll('.no-btn.dodging').forEach(btn => {
+      btn.style.display = (btn.dataset.screen === id) ? '' : 'none';
+    });
+  }
+
+  async function submitToFormspree(data, statusEl) {
+    if (statusEl) {
+      statusEl.textContent = 'Sending...';
+      statusEl.classList.remove('send-error', 'send-success');
+    }
+    try {
+      const res = await fetch(FORMSPREE_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) {
+        if (statusEl) {
+          statusEl.textContent = 'Sent to Jerald ✓';
+          statusEl.classList.add('send-success');
+        }
+        return true;
+      }
+      throw new Error('Request failed');
+    } catch (err) {
+      if (statusEl) {
+        statusEl.textContent = "Couldn't send automatically — use the copy button below instead.";
+        statusEl.classList.add('send-error');
+      }
+      return false;
+    }
   }
 
   /* ---------- Floating hearts ---------- */
@@ -574,15 +691,30 @@
     showScreen('screen4');
   });
 
-  // If she actually grinds out 5,000 characters, respect it — but make her confirm.
-  submitEssay.addEventListener('click', () => {
-    const confirmed = confirm("You wrote " + essayBox.value.length.toLocaleString() + " characters explaining why you can't go. Submit this as your final answer?");
-    if (confirmed) {
-      celebration.classList.remove('show');
-      document.getElementById('winHeadline').textContent = "Wow. Okay. 💔";
-      document.getElementById('winSub').textContent = "Respect for the commitment to the essay, Aira. Jerald will need a moment. (If this was a joke, there's still an 'I'm sure' button up there.)";
-      document.getElementById('celebration').classList.add('show');
-    }
+  // If she actually grinds out 5,000 characters, respect it.
+  submitEssay.addEventListener('click', async () => {
+    const fullText = essayBox.value;
+    showScreen('screen5');
+
+    const statusEl = document.getElementById('sendStatusDecline');
+    const summary = `Aira's reason (${fullText.length.toLocaleString()} characters):\n\n${fullText}`;
+
+    await submitToFormspree({
+      _subject: 'My answer (from Aira)',
+      answer: 'DECLINED',
+      reason: fullText,
+      message: summary
+    }, statusEl);
+
+    const copyFallbackDecline = document.getElementById('copyFallbackDecline');
+    copyFallbackDecline.onclick = (e) => {
+      e.preventDefault();
+      copyToClipboard(`To: ${JERALD_EMAIL}\nSubject: My answer\n\n${summary}`, copyFallbackDecline);
+    };
+  });
+
+  document.getElementById('changedMind5').addEventListener('click', () => {
+    showScreen('screen4');
   });
 
   /* ---------- SCREEN 4: food + date ---------- */
@@ -620,15 +752,62 @@
     return d.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   }
 
-  finalConfirm.addEventListener('click', () => {
+  finalConfirm.addEventListener('click', async () => {
     const food = foodInput.value.trim();
     const dateStr = formatDate(dateInput.value);
     document.getElementById('winHeadline').textContent = "It's a date! 🎉";
     document.getElementById('winSub').textContent =
       `${food} on ${dateStr}. Jerald, you know what to do. Aira, thank you for making this very over-engineered question worth it.`;
+
     celebration.classList.add('show');
     launchConfetti();
+
+    const statusEl = document.getElementById('sendStatus');
+    const summary = `Aira said YES!\n\nCraving: ${food}\nDate: ${dateStr}`;
+
+    await submitToFormspree({
+      _subject: "It's a yes! 💕 (from Aira)",
+      answer: 'YES',
+      food: food,
+      date: dateStr,
+      message: summary
+    }, statusEl);
+
+    const copyFallback = document.getElementById('copyFallback');
+    copyFallback.onclick = (e) => {
+      e.preventDefault();
+      copyToClipboard(`To: ${JERALD_EMAIL}\nSubject: It's a yes! 💕\n\n${summary}`, copyFallback);
+    };
   });
+
+  function copyToClipboard(text, linkEl) {
+    const fallbackCopy = () => {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch (err) { /* no-op */ }
+      document.body.removeChild(ta);
+    };
+
+    const showCopied = () => {
+      const original = linkEl.textContent;
+      linkEl.textContent = 'Copied! ✓';
+      setTimeout(() => { linkEl.textContent = original; }, 2000);
+    };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(showCopied).catch(() => {
+        fallbackCopy();
+        showCopied();
+      });
+    } else {
+      fallbackCopy();
+      showCopied();
+    }
+  }
 </script>
 
 </body>
