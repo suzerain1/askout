@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A Question for Aira</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --blush: #FFE5EC;
+    --cream: #FFF8F0;
+    --rose: #FF6B9D;
+    --rose-deep: #E8497A;
+    --charcoal: #3D2B3D;
+    --gold: #FFC857;
+    --shadow: rgba(232, 73, 122, 0.25);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    min-height: 100%;
+  }
+
+  body {
+    font-family: 'Outfit', sans-serif;
+    background: linear-gradient(160deg, var(--cream) 0%, var(--blush) 55%, #ffd6e4 100%);
+    color: var(--charcoal);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    min-height: 100vh;
+    padding: 24px;
+  }
+
+  /* Ambient floating hearts */
+  .floaty {
+    position: fixed;
+    top: -40px;
+    font-size: 22px;
+    opacity: 0.35;
+    pointer-events: none;
+    animation: drift linear infinite;
+    user-select: none;
+    z-index: 0;
+  }
+  @keyframes drift {
+    0%   { transform: translateY(0) rotate(0deg); }
+    100% { transform: translateY(110vh) rotate(40deg); }
+  }
+
+  .stage {
+    position: relative;
+    z-index: 2;
+    width: min(92vw, 560px);
+    text-align: center;
+    padding: 48px 36px 56px;
+    background: rgba(255, 255, 255, 0.6);
+    border-radius: 32px;
+    backdrop-filter: blur(6px);
+    box-shadow: 0 20px 60px var(--shadow);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+  }
+
+  .screen { display: none; }
+  .screen.active { display: block; animation: fadeIn 0.35s ease; }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .eyebrow {
+    font-size: 13px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--rose-deep);
+    font-weight: 600;
+    margin-bottom: 14px;
+    opacity: 0.85;
+  }
+
+  h1.question {
+    font-family: 'Baloo 2', sans-serif;
+    font-weight: 700;
+    font-size: clamp(26px, 6vw, 40px);
+    line-height: 1.25;
+    margin: 0 0 8px;
+    color: var(--charcoal);
+    min-height: 2.2em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.18s ease;
+  }
+
+  .subtext {
+    font-size: 15px;
+    color: #80647e;
+    margin-bottom: 34px;
+    min-height: 1.4em;
+  }
+
+  .button-row {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 22px;
+    height: 80px;
+  }
+
+  button {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+    padding: 16px 38px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.3s ease;
+  }
+
+  .yes-btn {
+    background: var(--rose);
+    color: white;
+    box-shadow: 0 10px 24px var(--shadow);
+    position: relative;
+    z-index: 3;
+  }
+  .yes-btn:hover {
+    background: var(--rose-deep);
+    transform: scale(1.06);
+  }
+  .yes-btn:active { transform: scale(0.97); }
+
+  .no-btn {
+    background: white;
+    color: var(--charcoal);
+    border: 2px solid #f0d4dd;
+    z-index: 4;
+    white-space: nowrap;
+    position: fixed;
+    /* Starting position is set via JS on first paint of each screen */
+    transition: left 0.28s ease, top 0.28s ease, transform 0.15s ease, opacity 0.4s ease;
+    visibility: hidden; /* hidden only until JS places it correctly, never via opacity/display so it can't appear to vanish */
+  }
+  .no-btn.placed { visibility: visible; }
+
+  .counter {
+    margin-top: 28px;
+    font-size: 13px;
+    color: #a98aa1;
+    letter-spacing: 0.02em;
+    min-height: 18px;
+  }
+
+  /* Essay textarea screen */
+  textarea.essay {
+    width: 100%;
+    min-height: 160px;
+    border-radius: 18px;
+    border: 2px solid #f0d4dd;
+    padding: 16px;
+    font-family: 'Outfit', sans-serif;
+    font-size: 15px;
+    resize: vertical;
+    margin-bottom: 10px;
+    background: white;
+    color: var(--charcoal);
+  }
+  textarea.essay:focus {
+    outline: none;
+    border-color: var(--rose);
+  }
+  .char-status {
+    font-size: 13px;
+    color: #a98aa1;
+    margin-bottom: 22px;
+    text-align: right;
+  }
+  .char-status.met { color: #3aa17e; font-weight: 600; }
+
+  .stack-row {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    align-items: center;
+  }
+
+  .submit-essay {
+    background: #e8d6e0;
+    color: #8a6480;
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
+  .submit-essay.enabled {
+    background: var(--rose-deep);
+    color: white;
+    cursor: pointer;
+    opacity: 1;
+  }
+
+  /* Final / good choice screen */
+  .field-group {
+    text-align: left;
+    margin-bottom: 22px;
+  }
+  .field-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--rose-deep);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .field-group input[type="text"],
+  .field-group input[type="date"] {
+    width: 100%;
+    padding: 14px 16px;
+    border-radius: 14px;
+    border: 2px solid #f0d4dd;
+    font-family: 'Outfit', sans-serif;
+    font-size: 16px;
+    background: white;
+    color: var(--charcoal);
+  }
+  .field-group input:focus {
+    outline: none;
+    border-color: var(--rose);
+  }
+
+  .confirm-btn {
+    background: var(--rose);
+    color: white;
+    width: 100%;
+    box-shadow: 0 10px 24px var(--shadow);
+  }
+  .confirm-btn:hover { background: var(--rose-deep); }
+  .confirm-btn:disabled {
+    background: #e8d6e0;
+    color: #8a6480;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+
+  /* Celebration overlay */
+  #celebration {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    background: radial-gradient(circle at 50% 40%, rgba(255,255,255,0.6), rgba(255,229,236,0.95));
+    padding: 24px;
+  }
+  #celebration.show { display: flex; }
+  .win-card {
+    text-align: center;
+    animation: pop 0.5s cubic-bezier(.2,1.4,.4,1);
+    max-width: 480px;
+  }
+  @keyframes pop {
+    0% { transform: scale(0.6); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .win-card h2 {
+    font-family: 'Baloo 2', sans-serif;
+    font-size: clamp(30px, 7vw, 50px);
+    color: var(--rose-deep);
+    margin: 0 0 12px;
+  }
+  .win-card p {
+    font-size: 17px;
+    color: var(--charcoal);
+    max-width: 420px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+  .confetti {
+    position: fixed;
+    top: -10%;
+    font-size: 20px;
+    animation: fall linear forwards;
+    pointer-events: none;
+  }
+  @keyframes fall {
+    to { transform: translateY(110vh) rotate(360deg); opacity: 0.9; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .floaty, .confetti { animation: none; display: none; }
+    * { transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<div id="floats"></div>
+
+<main class="stage">
+
+  <!-- SCREEN 1: The initial ask -->
+  <section class="screen active" id="screen1">
+    <div class="eyebrow">From Jerald, to Aira</div>
+    <h1 class="question" id="q1">Will you go on a date with me?</h1>
+    <div class="subtext" id="s1">Just a yes or no question. Mostly yes.</div>
+    <div class="button-row">
+      <button class="yes-btn" id="yes1">Yes 💕</button>
+      <button class="no-btn" id="no1">No</button>
+    </div>
+    <div class="counter" id="counter1"></div>
+  </section>
+
+  <!-- SCREEN 2: Are you SURE??? -->
+  <section class="screen" id="screen2">
+    <div class="eyebrow">Hold on</div>
+    <h1 class="question" id="q2">Are you SURE???</h1>
+    <div class="subtext" id="s2">Just double-checking. This is a big deal.</div>
+    <div class="button-row">
+      <button class="yes-btn" id="yeah2">Yeah</button>
+      <button class="no-btn" id="no2">No</button>
+    </div>
+    <div class="counter" id="counter2"></div>
+  </section>
+
+  <!-- SCREEN 3: Last chance — essay or surrender -->
+  <section class="screen" id="screen3">
+    <div class="eyebrow">Final answer</div>
+    <h1 class="question" id="q3">REALLY? This is your last chance to say no.</h1>
+    <div class="subtext">Choose wisely.</div>
+    <div class="stack-row">
+      <button class="yes-btn" id="imsure3" style="width:100%;">I'm sure</button>
+    </div>
+    <div style="margin: 22px 0 6px; font-size: 13px; color:#a98aa1;">— or, if you must decline —</div>
+    <textarea class="essay" id="essayBox" placeholder="Write your reason here. Minimum 5,000 characters required to decline."></textarea>
+    <div class="char-status" id="charStatus">0 / 5,000 characters</div>
+    <button class="submit-essay" id="submitEssay" style="width:100%;" disabled>Submit reason for declining</button>
+  </section>
+
+  <!-- SCREEN 4: Good choice — food + date -->
+  <section class="screen" id="screen4">
+    <div class="eyebrow">It's happening</div>
+    <h1 class="question" style="font-size: clamp(28px, 7vw, 44px);">GOOD CHOICE 🎉</h1>
+    <div class="subtext">Just two quick things and we're set.</div>
+    <div class="field-group">
+      <label for="foodInput">What are you craving?</label>
+      <input type="text" id="foodInput" placeholder="e.g. ramen, Italian, street food...">
+    </div>
+    <div class="field-group">
+      <label for="dateInput">Pick a date</label>
+      <input type="date" id="dateInput">
+    </div>
+    <button class="confirm-btn" id="finalConfirm" disabled>Lock it in</button>
+  </section>
+
+</main>
+
+<div id="celebration">
+  <div class="win-card">
+    <h2 id="winHeadline">It's a date! 🎉</h2>
+    <p id="winSub">Loading...</p>
+  </div>
+</div>
+
+<script>
+  /* ---------- Shared helpers ---------- */
+
+  function placeNoButton(btn) {
+    const margin = 70;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const btnW = btn.offsetWidth || 90;
+    const btnH = btn.offsetHeight || 54;
+    const maxX = Math.max(margin, w - margin - btnW);
+    const maxY = Math.max(margin, h - margin - btnH);
+    const x = margin + Math.random() * (maxX - margin);
+    const y = margin + Math.random() * (maxY - margin);
+    btn.style.left = `${x}px`;
+    btn.style.top = `${y}px`;
+    btn.classList.add('placed');
+  }
+
+  function setupDodgingButton(btn, onDodge) {
+    let active = true;
+
+    // Place it near the stage initially so it's visible immediately
+    requestAnimationFrame(() => {
+      const rect = btn.getBoundingClientRect();
+      if (rect.width === 0) {
+        // not yet visible in layout (screen not active) — try again shortly
+        setTimeout(() => placeNoButton(btn), 50);
+      } else {
+        placeNoButton(btn);
+      }
+    });
+
+    function dodge() {
+      if (!active) return;
+      placeNoButton(btn);
+      if (onDodge) onDodge();
+    }
+
+    btn.addEventListener('mouseenter', dodge);
+    btn.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      dodge();
+    }, { passive: false });
+
+    const moveHandler = (e) => {
+      if (!active) return;
+      const rect = btn.getBoundingClientRect();
+      if (rect.width === 0) return;
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const dist = Math.hypot(e.clientX - cx, e.clientY - cy);
+      if (dist < 70) dodge();
+    };
+    document.addEventListener('mousemove', moveHandler);
+
+    const resizeHandler = () => { if (active) placeNoButton(btn); };
+    window.addEventListener('resize', resizeHandler);
+
+    return {
+      disable: () => {
+        active = false;
+        document.removeEventListener('mousemove', moveHandler);
+        window.removeEventListener('resize', resizeHandler);
+      }
+    };
+  }
+
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  /* ---------- Floating hearts ---------- */
+  const floatsContainer = document.getElementById('floats');
+  const heartChars = ['💗', '💕', '🌸', '✨'];
+  for (let i = 0; i < 14; i++) {
+    const el = document.createElement('div');
+    el.className = 'floaty';
+    el.textContent = heartChars[Math.floor(Math.random() * heartChars.length)];
+    el.style.left = Math.random() * 100 + 'vw';
+    el.style.animationDuration = (10 + Math.random() * 14) + 's';
+    el.style.animationDelay = (Math.random() * 10) + 's';
+    el.style.fontSize = (16 + Math.random() * 14) + 'px';
+    floatsContainer.appendChild(el);
+  }
+
+  /* ---------- SCREEN 1: initial ask ---------- */
+  const script1 = [
+    ["Will you go on a date with me?", "Just a yes or no question. Mostly yes."],
+    ["Wait — will you go on a date with me?", "Take your time. The button isn't going anywhere. (It is.)"],
+    ["C'mon, go on a date with me?", "I rehearsed this in the mirror, Aira."],
+    ["Pretty please, one date?", "I'll even let you pick the restaurant."],
+    ["Aira. A date. With me. Yes?", "The No button is getting tired. So am I, emotionally."],
+    ["Is that a yes I'm seeing in your eyes?", "I'm choosing to believe so."],
+    ["I'm not clicking away until it's a yes 😤", "This is now a personality trait."],
+    ["Okay but seriously — date with me?", "I have a whole plan. It's a good plan."],
+    ["Aira pleeeease 🥺", "My self-esteem is in your hands right now."],
+    ["Last one: will you go on a date with me?", "There is, in fact, no escaping this."]
+  ];
+  let s1Index = 0;
+  let s1Dodges = 0;
+  const q1 = document.getElementById('q1');
+  const s1 = document.getElementById('s1');
+  const counter1 = document.getElementById('counter1');
+  const yes1 = document.getElementById('yes1');
+  const yesBtnEl = yes1;
+
+  function updateScript1() {
+    const [q, s] = script1[Math.min(s1Index, script1.length - 1)];
+    q1.style.transform = 'scale(0.92)';
+    s1.style.opacity = '0';
+    setTimeout(() => {
+      q1.textContent = q;
+      s1.textContent = s;
+      q1.style.transform = 'scale(1)';
+      s1.style.opacity = '1';
+    }, 140);
+  }
+
+  const dodge1 = setupDodgingButton(document.getElementById('no1'), () => {
+    s1Dodges++;
+    const scale = Math.min(1 + s1Dodges * 0.045, 1.6);
+    yesBtnEl.style.transform = `scale(${scale})`;
+    if (s1Dodges === 1 || s1Dodges % 2 === 0) {
+      s1Index = Math.min(s1Index + 1, script1.length - 1);
+      updateScript1();
+    }
+    if (s1Dodges >= 3) {
+      counter1.textContent = "Attempts to say no: " + s1Dodges + (s1Dodges === 3 ? " (it's not working)" : "");
+    }
+  });
+
+  yes1.addEventListener('click', () => {
+    dodge1.disable();
+    showScreen('screen2');
+  });
+
+  /* ---------- SCREEN 2: Are you SURE??? ---------- */
+  const script2 = [
+    ["Are you SURE???", "Just double-checking. This is a big deal."],
+    ["Wait, really really sure?", "I just want to be 100% certain here."],
+    ["Sure sure? Like, for real?", "The No button is sweating a little."],
+    ["Okay one more time — sure?", "Last confirmation, I promise."]
+  ];
+  let s2Index = 0;
+  let s2Dodges = 0;
+  const q2 = document.getElementById('q2');
+  const s2 = document.getElementById('s2');
+  const counter2 = document.getElementById('counter2');
+  const yeah2 = document.getElementById('yeah2');
+
+  function updateScript2() {
+    const [q, s] = script2[Math.min(s2Index, script2.length - 1)];
+    q2.style.transform = 'scale(0.92)';
+    setTimeout(() => {
+      q2.textContent = q;
+      s2.textContent = s;
+      q2.style.transform = 'scale(1)';
+    }, 140);
+  }
+
+  const dodge2 = setupDodgingButton(document.getElementById('no2'), () => {
+    s2Dodges++;
+    const scale = Math.min(1 + s2Dodges * 0.05, 1.6);
+    yeah2.style.transform = `scale(${scale})`;
+    if (s2Dodges % 2 === 1) {
+      s2Index = Math.min(s2Index + 1, script2.length - 1);
+      updateScript2();
+    }
+    if (s2Dodges >= 3) {
+      counter2.textContent = "Attempts to say no: " + s2Dodges;
+    }
+  });
+
+  yeah2.addEventListener('click', () => {
+    dodge2.disable();
+    showScreen('screen3');
+  });
+
+  /* ---------- SCREEN 3: essay or surrender ---------- */
+  const imsure3 = document.getElementById('imsure3');
+  const essayBox = document.getElementById('essayBox');
+  const charStatus = document.getElementById('charStatus');
+  const submitEssay = document.getElementById('submitEssay');
+  const REQUIRED_CHARS = 5000;
+
+  essayBox.addEventListener('input', () => {
+    const len = essayBox.value.length;
+    charStatus.textContent = `${len.toLocaleString()} / ${REQUIRED_CHARS.toLocaleString()} characters`;
+    if (len >= REQUIRED_CHARS) {
+      charStatus.classList.add('met');
+      submitEssay.disabled = false;
+      submitEssay.classList.add('enabled');
+    } else {
+      charStatus.classList.remove('met');
+      submitEssay.disabled = true;
+      submitEssay.classList.remove('enabled');
+    }
+  });
+
+  imsure3.addEventListener('click', () => {
+    showScreen('screen4');
+  });
+
+  // If she actually grinds out 5,000 characters, respect it — but make her confirm.
+  submitEssay.addEventListener('click', () => {
+    const confirmed = confirm("You wrote " + essayBox.value.length.toLocaleString() + " characters explaining why you can't go. Submit this as your final answer?");
+    if (confirmed) {
+      celebration.classList.remove('show');
+      document.getElementById('winHeadline').textContent = "Wow. Okay. 💔";
+      document.getElementById('winSub').textContent = "Respect for the commitment to the essay, Aira. Jerald will need a moment. (If this was a joke, there's still an 'I'm sure' button up there.)";
+      document.getElementById('celebration').classList.add('show');
+    }
+  });
+
+  /* ---------- SCREEN 4: food + date ---------- */
+  const foodInput = document.getElementById('foodInput');
+  const dateInput = document.getElementById('dateInput');
+  const finalConfirm = document.getElementById('finalConfirm');
+  const celebration = document.getElementById('celebration');
+
+  // Set min date to today
+  const today = new Date();
+  dateInput.min = today.toISOString().split('T')[0];
+
+  function checkFinalReady() {
+    finalConfirm.disabled = !(foodInput.value.trim().length > 0 && dateInput.value);
+  }
+  foodInput.addEventListener('input', checkFinalReady);
+  dateInput.addEventListener('input', checkFinalReady);
+  dateInput.addEventListener('change', checkFinalReady);
+
+  function launchConfetti() {
+    const emojis = ['🎉', '💖', '✨', '🌸', '💕', '🎊'];
+    for (let i = 0; i < 70; i++) {
+      const span = document.createElement('span');
+      span.className = 'confetti';
+      span.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+      span.style.left = Math.random() * 100 + 'vw';
+      span.style.animationDuration = (2.5 + Math.random() * 2) + 's';
+      span.style.fontSize = (14 + Math.random() * 18) + 'px';
+      celebration.appendChild(span);
+    }
+  }
+
+  function formatDate(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  }
+
+  finalConfirm.addEventListener('click', () => {
+    const food = foodInput.value.trim();
+    const dateStr = formatDate(dateInput.value);
+    document.getElementById('winHeadline').textContent = "It's a date! 🎉";
+    document.getElementById('winSub').textContent =
+      `${food} on ${dateStr}. Jerald, you know what to do. Aira, thank you for making this very over-engineered question worth it.`;
+    celebration.classList.add('show');
+    launchConfetti();
+  });
+</script>
+
+</body>
+</html>
